@@ -19,6 +19,7 @@ from vllm.engine.protocol import EngineClient
 from vllm.entrypoints.anthropic.protocol import (
     AnthropicContentBlock,
     AnthropicContextManagement,
+    AnthropicCountCachedTokensResponse,
     AnthropicCountTokensRequest,
     AnthropicCountTokensResponse,
     AnthropicDelta,
@@ -1047,3 +1048,41 @@ class AnthropicServingMessages(OpenAIServingChat):
         )
 
         return response
+
+    async def count_cached_tokens(
+        self,
+        request: AnthropicCountTokensRequest,
+        raw_request: Request | None = None,
+    ) -> AnthropicCountCachedTokensResponse | ErrorResponse:
+        """vLLM extension: report how much of the prompt already hits the
+        prefix cache, without running generation.
+
+        Renders the request the same way ``count_tokens`` does, then asks
+        the engine's KV cache manager for the longest cached prefix of each
+        rendered prompt. Not part of the Anthropic API spec.
+        """
+        chat_req = self._convert_anthropic_to_openai_request(
+            request,
+            merge_inline_system=self._merge_inline_system,
+        )
+        result = await self.render_chat_request(chat_req)
+        if isinstance(result, ErrorResponse):
+            return result
+
+        _, engine_inputs = result
+
+        input_tokens = 0
+        cached_tokens = 0
+        for engine_input in engine_inputs:
+            prompt_token_ids = engine_input.get("prompt_token_ids")
+            if not prompt_token_ids:
+                continue
+            input_tokens += len(prompt_token_ids)
+            cached_tokens += await self.engine_client.get_num_cached_tokens(
+                prompt_token_ids
+            )
+
+        return AnthropicCountCachedTokensResponse(
+            input_tokens=input_tokens,
+            cached_tokens=cached_tokens,
+        )

@@ -163,6 +163,12 @@ class EngineClient(ABC):
         ...
 
     @abstractmethod
+    async def get_num_cached_tokens(self, prompt_token_ids: list[int]) -> int:
+        """Return how many leading tokens of ``prompt_token_ids`` are already
+        present in the prefix cache, without admitting a request."""
+        ...
+
+    @abstractmethod
     async def sleep(self, level: int = 1, mode: "PauseMode" = "abort") -> None:
         """Sleep the engine"""
         ...

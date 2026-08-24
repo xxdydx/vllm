@@ -33,6 +33,7 @@ from vllm.logging_utils.dump_input import dump_engine_exception
 from vllm.lora.request import LoRARequest
 from vllm.multimodal import MULTIMODAL_REGISTRY
 from vllm.multimodal.cache import MultiModalCacheMissError
+from vllm.sampling_params import SamplingParams
 from vllm.tasks import POOLING_TASKS, SupportedTask
 from vllm.tracing import instrument, maybe_init_worker_tracer
 from vllm.transformers_utils.config import maybe_register_config_serialize_by_value
@@ -803,6 +804,27 @@ class EngineCore:
         return self.scheduler.reset_prefix_cache(
             reset_running_requests, reset_connector
         )
+
+    def get_num_cached_tokens(self, prompt_token_ids: list[int]) -> int:
+        """Return how many leading tokens of ``prompt_token_ids`` already hit
+        the prefix cache, without allocating blocks or admitting a request.
+
+        Mirrors the hit length a real generate call over the same prompt
+        would report, including the "last token is never cached" rule
+        (see ``KVCacheManager.get_computed_blocks``).
+        """
+        kv_cache_manager = getattr(self.scheduler, "kv_cache_manager", None)
+        if kv_cache_manager is None:
+            return 0
+        probe_request = Request(
+            request_id="cache_probe",
+            prompt_token_ids=prompt_token_ids,
+            sampling_params=SamplingParams(max_tokens=1),
+            pooling_params=None,
+            block_hasher=self.request_block_hasher,
+        )
+        _, num_cached_tokens, _ = kv_cache_manager.get_computed_blocks(probe_request)
+        return num_cached_tokens
 
     def reset_encoder_cache(self) -> None:
         """Reset the encoder cache to invalidate all cached encoder outputs.

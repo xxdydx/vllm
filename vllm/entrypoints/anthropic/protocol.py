@@ -294,3 +294,11 @@ class AnthropicCountTokensResponse(BaseModel):
 
     input_tokens: int
     context_management: AnthropicContextManagement | None = None
+
+
+class AnthropicCountCachedTokensResponse(BaseModel):
+    """vLLM extension: reports how much of a prompt already hits the prefix
+    cache, without running generation. Not part of the Anthropic API spec."""
+
+    input_tokens: int
+    cached_tokens: int
