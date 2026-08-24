@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from vllm.entrypoints.anthropic.protocol import (
+    AnthropicCountCachedTokensResponse,
     AnthropicCountTokensRequest,
     AnthropicCountTokensResponse,
     AnthropicError,
@@ -111,6 +112,43 @@ async def count_tokens(request: AnthropicCountTokensRequest, raw_request: Reques
         response = await handler.count_tokens(request, raw_request)
     except Exception as e:
         logger.exception("Error in count_tokens: %s", e)
+        return translate_error_response(create_error_response(e))
+
+    if isinstance(response, ErrorResponse):
+        return translate_error_response(response)
+
+    return JSONResponse(content=response.model_dump(exclude_none=True))
+
+
+@router.post(
+    "/v1/messages/count_cached_tokens",
+    dependencies=[Depends(validate_json_request)],
+    responses={
+        HTTPStatus.OK.value: {"model": AnthropicCountCachedTokensResponse},
+        HTTPStatus.BAD_REQUEST.value: {"model": AnthropicErrorResponse},
+        HTTPStatus.NOT_FOUND.value: {"model": AnthropicErrorResponse},
+        HTTPStatus.INTERNAL_SERVER_ERROR.value: {"model": AnthropicErrorResponse},
+    },
+)
+@with_cancellation
+@load_aware_call
+async def count_cached_tokens(
+    request: AnthropicCountTokensRequest, raw_request: Request
+):
+    """vLLM extension (not part of the Anthropic API spec): report how many
+    tokens of this prompt already hit the prefix cache."""
+    handler = messages(raw_request)
+    if handler is None:
+        base_server = raw_request.app.state.serving_tokenization
+        error = base_server.create_error_response(
+            NotImplementedError("The model does not support Messages API")
+        )
+        return translate_error_response(error)
+
+    try:
+        response = await handler.count_cached_tokens(request, raw_request)
+    except Exception as e:
+        logger.exception("Error in count_cached_tokens: %s", e)
         return translate_error_response(create_error_response(e))
 
     if isinstance(response, ErrorResponse):

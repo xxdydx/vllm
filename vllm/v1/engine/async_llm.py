@@ -1079,6 +1079,9 @@ class AsyncLLM(EngineClient):
             reset_running_requests, reset_connector
         )
 
+    async def get_num_cached_tokens(self, prompt_token_ids: list[int]) -> int:
+        return await self.engine_core.get_num_cached_tokens_async(prompt_token_ids)
+
     async def reset_encoder_cache(self) -> None:
         await self.engine_core.reset_encoder_cache_async()
 

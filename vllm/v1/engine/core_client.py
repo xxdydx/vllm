@@ -192,6 +192,9 @@ class EngineCoreClient(ABC):
     ) -> bool:
         raise NotImplementedError
 
+    def get_num_cached_tokens(self, prompt_token_ids: list[int]) -> int:
+        raise NotImplementedError
+
     def reset_encoder_cache(self) -> None:
         raise NotImplementedError
 
@@ -285,6 +288,9 @@ class EngineCoreClient(ABC):
     async def reset_prefix_cache_async(
         self, reset_running_requests: bool = False, reset_connector: bool = False
     ) -> bool:
+        raise NotImplementedError
+
+    async def get_num_cached_tokens_async(self, prompt_token_ids: list[int]) -> int:
         raise NotImplementedError
 
     async def reset_encoder_cache_async(self) -> None:
@@ -398,6 +404,9 @@ class InprocClient(EngineCoreClient):
         return self.engine_core.reset_prefix_cache(
             reset_running_requests, reset_connector
         )
+
+    def get_num_cached_tokens(self, prompt_token_ids: list[int]) -> int:
+        return self.engine_core.get_num_cached_tokens(prompt_token_ids)
 
     def reset_encoder_cache(self) -> None:
         self.engine_core.reset_encoder_cache()
@@ -1026,6 +1035,9 @@ class SyncMPClient(MPClient):
             "reset_prefix_cache", reset_running_requests, reset_connector
         )
 
+    def get_num_cached_tokens(self, prompt_token_ids: list[int]) -> int:
+        return self.call_utility("get_num_cached_tokens", prompt_token_ids)
+
     def reset_encoder_cache(self) -> None:
         self.call_utility("reset_encoder_cache")
 
@@ -1283,6 +1295,11 @@ class AsyncMPClient(MPClient):
     ) -> bool:
         return await self.call_utility_async(
             "reset_prefix_cache", reset_running_requests, reset_connector
+        )
+
+    async def get_num_cached_tokens_async(self, prompt_token_ids: list[int]) -> int:
+        return await self.call_utility_async(
+            "get_num_cached_tokens", prompt_token_ids
         )
 
     async def reset_encoder_cache_async(self) -> None:
