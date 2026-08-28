@@ -297,6 +297,18 @@ class AnthropicCountTokensResponse(BaseModel):
     context_management: AnthropicContextManagement | None = None
 
 
+class AnthropicCountCachedTokensRequest(AnthropicCountTokensRequest):
+    """vLLM extension: messages.count_cached_tokens request.
+
+    Extends count_tokens with output_config so the probe renders the exact
+    same prompt as the real generation request. Fields such as reasoning
+    effort affect the chat template output, and cache lookups are keyed on
+    the rendered token sequence, so a mismatch here makes every prefix-cache
+    probe miss."""
+
+    output_config: AnthropicOutputConfig | None = None
+
+
 class AnthropicCountCachedTokensResponse(BaseModel):
     """vLLM extension: reports how much of a prompt already hits the prefix
     cache, without running generation. Not part of the Anthropic API spec."""

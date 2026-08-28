@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from vllm.entrypoints.anthropic.protocol import (
+    AnthropicCountCachedTokensRequest,
     AnthropicCountCachedTokensResponse,
     AnthropicCountTokensRequest,
     AnthropicCountTokensResponse,
@@ -133,7 +134,7 @@ async def count_tokens(request: AnthropicCountTokensRequest, raw_request: Reques
 @with_cancellation
 @load_aware_call
 async def count_cached_tokens(
-    request: AnthropicCountTokensRequest, raw_request: Request
+    request: AnthropicCountCachedTokensRequest, raw_request: Request
 ):
     """vLLM extension (not part of the Anthropic API spec): report how many
     tokens of this prompt already hit the prefix cache."""

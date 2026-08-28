@@ -26,6 +26,8 @@ from pydantic import BaseModel, Field, ValidationError
 
 from vllm.entrypoints.anthropic.api_router import attach_router
 from vllm.entrypoints.anthropic.protocol import (
+    AnthropicCountCachedTokensRequest,
+    AnthropicCountTokensRequest,
     AnthropicMessagesRequest,
 )
 from vllm.entrypoints.anthropic.serving import (
@@ -1727,3 +1729,42 @@ class TestClientErrorResponses:
 
         assert response.status_code == HTTPStatus.BAD_REQUEST
         assert response.json()["error"]["type"] == "BadRequestError"
+
+
+class TestOutputConfigEffortPropagation:
+    """count_cached_tokens must render the same prompt as the real
+    generation request, or prefix-cache probes always miss. reasoning
+    effort changes the chat-template output, so it must survive
+    conversion the same way it does for AnthropicMessagesRequest."""
+
+    def test_messages_request_propagates_effort(self):
+        request = _make_request(
+            [{"role": "user", "content": "Hello"}],
+            output_config={"effort": "low"},
+        )
+        chat_req = _convert(request)
+        assert chat_req.reasoning_effort == "low"
+
+    def test_count_tokens_request_has_no_effort_to_propagate(self):
+        """The real Anthropic-spec count_tokens endpoint has no
+        output_config field; reasoning_effort stays unset."""
+        request = AnthropicCountTokensRequest(
+            model="test-model",
+            messages=[{"role": "user", "content": "Hello"}],
+        )
+        chat_req = _convert(request)
+        assert chat_req.reasoning_effort is None
+
+    def test_count_cached_tokens_request_propagates_effort(self):
+        """Regression test: count_cached_tokens must apply output_config
+        the same way the real generation request does, otherwise the
+        rendered probe prompt diverges from the real prompt (e.g. a
+        different default reasoning effort inserts extra tokens) and the
+        prefix-cache lookup always reports 0 cached tokens."""
+        request = AnthropicCountCachedTokensRequest(
+            model="test-model",
+            messages=[{"role": "user", "content": "Hello"}],
+            output_config={"effort": "low"},
+        )
+        chat_req = _convert(request)
+        assert chat_req.reasoning_effort == "low"

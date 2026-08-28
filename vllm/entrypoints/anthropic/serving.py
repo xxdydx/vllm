@@ -19,6 +19,7 @@ from vllm.engine.protocol import EngineClient
 from vllm.entrypoints.anthropic.protocol import (
     AnthropicContentBlock,
     AnthropicContextManagement,
+    AnthropicCountCachedTokensRequest,
     AnthropicCountCachedTokensResponse,
     AnthropicCountTokensRequest,
     AnthropicCountTokensResponse,
@@ -505,7 +506,9 @@ class AnthropicServingMessages(OpenAIServingChat):
         if isinstance(anthropic_request, AnthropicCountTokensRequest):
             return
         output_config: AnthropicOutputConfig | None = anthropic_request.output_config
-        if output_config and output_config.format and output_config.format.json_schema:
+        if output_config is None:
+            return
+        if output_config.format and output_config.format.json_schema:
             req.response_format = ResponseFormat(
                 type=output_config.format.type,
                 json_schema=JsonSchemaResponseFormat(
@@ -513,7 +516,7 @@ class AnthropicServingMessages(OpenAIServingChat):
                     name=output_config.format.type,
                 ),
             )
-        if output_config and output_config.effort is not None:
+        if output_config.effort is not None:
             req.reasoning_effort = output_config.effort
 
     @classmethod
@@ -1053,15 +1056,17 @@ class AnthropicServingMessages(OpenAIServingChat):
 
     async def count_cached_tokens(
         self,
-        request: AnthropicCountTokensRequest,
+        request: AnthropicCountCachedTokensRequest,
         raw_request: Request | None = None,
     ) -> AnthropicCountCachedTokensResponse | ErrorResponse:
         """vLLM extension: report how much of the prompt already hits the
         prefix cache, without running generation.
 
-        Renders the request the same way ``count_tokens`` does, then asks
-        the engine's KV cache manager for the longest cached prefix of each
-        rendered prompt. Not part of the Anthropic API spec.
+        Renders the request the same way the real generation request does
+        (including ``output_config``, since e.g. reasoning effort changes
+        the chat-template output), then asks the engine's KV cache manager
+        for the longest cached prefix of each rendered prompt. Not part of
+        the Anthropic API spec.
         """
         chat_req = self._convert_anthropic_to_openai_request(
             request,
